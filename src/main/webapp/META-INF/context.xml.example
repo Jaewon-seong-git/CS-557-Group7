@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Context>
+    <!-- Copy to context.xml locally and replace both usernames/passwords. Do not commit context.xml. -->
+    <Resource name="jdbc/HotelGuestDB" auth="Container" type="javax.sql.DataSource"
+              factory="org.apache.tomcat.jdbc.pool.DataSourceFactory"
+              driverClassName="com.mysql.cj.jdbc.Driver"
+              url="jdbc:mysql://localhost:3306/hotel_reservation?serverTimezone=UTC&amp;useSSL=false"
+              username="REPLACE_WITH_GUEST_DB_USERNAME" password="REPLACE_WITH_GUEST_DB_PASSWORD"
+              initialSize="2" maxActive="10" maxIdle="5" maxWait="10000" />
+    <Resource name="jdbc/HotelAdminDB" auth="Container" type="javax.sql.DataSource"
+              factory="org.apache.tomcat.jdbc.pool.DataSourceFactory"
+              driverClassName="com.mysql.cj.jdbc.Driver"
+              url="jdbc:mysql://localhost:3306/hotel_reservation?serverTimezone=UTC&amp;useSSL=false"
+              username="REPLACE_WITH_ADMIN_DB_USERNAME" password="REPLACE_WITH_ADMIN_DB_PASSWORD"
+              initialSize="1" maxActive="5" maxIdle="2" maxWait="10000" />
+</Context>

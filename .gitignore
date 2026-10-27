@@ -1,0 +1,8 @@
+/build/
+/src/main/webapp/META-INF/context.xml
+*.log
+/.metadata/
+.DS_Store
+Thumbs.db
+/docs/TEAM_HANDOFF.md
+/docs/PHASE1_CONTRACT_DRAFT.md
