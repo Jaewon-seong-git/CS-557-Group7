@@ -1,6 +1,7 @@
 package dao;
 
 import java.sql.Connection;
+import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -10,7 +11,7 @@ import javax.naming.InitialContext;
 import javax.naming.NamingException;
 import javax.sql.DataSource;
 
-/** JNDI access to the Tomcat-managed, least-privilege MySQL pools. */
+/** JNDI access to the Tomcat-managed, least-privilege MySQL pools with local fallback. */
 public final class DBConnection {
     public enum AppRole { GUEST, ADMIN }
 
@@ -31,14 +32,21 @@ public final class DBConnection {
             }
             return dataSource.getConnection();
         } catch (NamingException e) {
-            throw new SQLException("Cannot find pooled database resource " + name
-                    + ". Configure the Tomcat JNDI DataSource first.", e);
+            // Eclipse main() Local Connection (Connect DriverManager)
+            String url = "jdbc:mysql://localhost:3306/hotel_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC";
+            String user = (role == AppRole.ADMIN) ? "hotel_admin" : "hotel_guest";
+            String pass = (role == AppRole.ADMIN) ? "AdminPass123!" : "GuestPass123!";
+            return DriverManager.getConnection(url, user, pass);
         } finally {
             if (context != null) {
                 try { context.close(); }
                 catch (NamingException ignored) { /* The pooled Connection is independently managed. */ }
             }
         }
+    }
+
+    public static Connection getConnection() throws SQLException {
+        return getConnection(AppRole.ADMIN);
     }
 
     @FunctionalInterface
@@ -73,20 +81,4 @@ public final class DBConnection {
             return statement.executeUpdate();
         }
     }
-
-    public static Connection getConnection() throws SQLException {
-    try {
-        // Tomcat Server Environment
-        Context initCtx = new InitialContext();
-        Context envCtx = (Context) initCtx.lookup("java:comp/env");
-        DataSource ds = (DataSource) envCtx.lookup("jdbc/HotelDB");
-        return ds.getConnection();
-    } catch (NamingException e) {
-        // Eclipse Local Connection
-        String url = "jdbc:mysql://localhost:3306/hotel_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC";
-        String user = "hotel_admin";
-        String pass = "AdminPass123!";
-        return DriverManager.getConnection(url, user, pass);
-    }
-}
 }
