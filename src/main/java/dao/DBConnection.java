@@ -73,4 +73,20 @@ public final class DBConnection {
             return statement.executeUpdate();
         }
     }
+
+    public static Connection getConnection() throws SQLException {
+    try {
+        // Tomcat Server Environment
+        Context initCtx = new InitialContext();
+        Context envCtx = (Context) initCtx.lookup("java:comp/env");
+        DataSource ds = (DataSource) envCtx.lookup("jdbc/HotelDB");
+        return ds.getConnection();
+    } catch (NamingException e) {
+        // Eclipse Local Connection
+        String url = "jdbc:mysql://localhost:3306/hotel_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC";
+        String user = "hotel_admin";
+        String pass = "AdminPass123!";
+        return DriverManager.getConnection(url, user, pass);
+    }
+}
 }
