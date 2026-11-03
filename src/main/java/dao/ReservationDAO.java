@@ -14,12 +14,14 @@ public class ReservationDAO {
                              LocalDate checkOut, String status, BigDecimal totalPrice) { }
     public record CancellationResult(BigDecimal refundAmount) { }
 
-    /** Procedure contract: four IN arguments, then OUT reservation id and quoted total. */
+    /** Procedure contract: four IN arguments, then OUT reservation id, quoted total, and status message. */
     public ReservationReceipt createReservation(long guestId, long roomId,
                                                 LocalDate checkIn, LocalDate checkOut)
             throws SQLException {
         validateStay(guestId, roomId, checkIn, checkOut);
-        String call = "{call sp_create_reservation(?, ?, ?, ?, ?, ?)}";
+        
+        // sp_create_reservation 
+        String call = "{call sp_create_reservation(?, ?, ?, ?, ?, ?, ?)}";
         try (var connection = DBConnection.getConnection(DBConnection.AppRole.GUEST);
              CallableStatement statement = connection.prepareCall(call)) {
             statement.setLong(1, guestId);
@@ -28,38 +30,62 @@ public class ReservationDAO {
             statement.setDate(4, java.sql.Date.valueOf(checkOut));
             statement.registerOutParameter(5, Types.BIGINT);
             statement.registerOutParameter(6, Types.DECIMAL);
+            statement.registerOutParameter(7, Types.VARCHAR);
             statement.execute();
+            
             long id = statement.getLong(5);
             BigDecimal total = statement.getBigDecimal(6);
             if (statement.wasNull() || id <= 0 || total == null) {
-                throw new SQLException("sp_create_reservation did not return the reservation receipt.");
+                String errorMsg = statement.getString(7);
+                throw new SQLException("sp_create_reservation failed: " + (errorMsg != null ? errorMsg : "receipt missing."));
             }
             return new ReservationReceipt(id, total);
         }
     }
 
-    /** The database trigger validates APPROVED status and the seven-day payment deadline. */
     public boolean recordPayment(long reservationId, long guestId) throws SQLException {
         if (reservationId <= 0 || guestId <= 0) throw new IllegalArgumentException("IDs must be positive.");
-        String sql = "INSERT INTO Payment (reservation_id, amount, paid_at, payment_status) "
-                + "SELECT r.reservation_id, r.total_price, CURRENT_TIMESTAMP, 'PAID' FROM Reservation r "
-                + "WHERE r.reservation_id = ? AND r.guest_id = ? AND r.status = 'APPROVED'";
-        return DBConnection.update(DBConnection.AppRole.GUEST, sql, ps -> {
+
+        BigDecimal priceToPay = null;
+        String selectSql = "SELECT total_price FROM Reservation "
+                + "WHERE reservation_id = ? AND guest_id = ? AND status = 'APPROVED'";
+
+        try (var connection = DBConnection.getConnection(DBConnection.AppRole.GUEST);
+             var selectStmt = connection.prepareStatement(selectSql)) {
+            selectStmt.setLong(1, reservationId);
+            selectStmt.setLong(2, guestId);
+            try (var rs = selectStmt.executeQuery()) {
+                if (rs.next()) {
+                    priceToPay = rs.getBigDecimal("total_price");
+                } else {
+                    return false; 
+                }
+            }
+        }
+
+        String insertSql = "INSERT INTO Payment (reservation_id, amount, payment_method) VALUES (?, ?, 'CREDIT_CARD')";
+        final BigDecimal finalAmount = priceToPay;
+        return DBConnection.update(DBConnection.AppRole.GUEST, insertSql, ps -> {
             ps.setLong(1, reservationId);
-            ps.setLong(2, guestId);
+            ps.setBigDecimal(2, finalAmount);
         }) == 1;
     }
 
     /** The procedure verifies ownership and returns the computed refund amount. */
     public CancellationResult cancelReservation(long reservationId, long guestId) throws SQLException {
         if (reservationId <= 0 || guestId <= 0) throw new IllegalArgumentException("IDs must be positive.");
+        
+        // sp_cancel_reservation procedure: IN(reservation_id), OUT(refund_amount), OUT(status_msg)
+        String call = "{call sp_cancel_reservation(?, ?, ?)}";
         try (var connection = DBConnection.getConnection(DBConnection.AppRole.GUEST);
-             CallableStatement statement = connection.prepareCall("{call sp_cancel_reservation(?, ?, ?)}")) {
+             CallableStatement statement = connection.prepareCall(call)) {
             statement.setLong(1, reservationId);
-            statement.setLong(2, guestId);
-            statement.registerOutParameter(3, Types.DECIMAL);
+            statement.registerOutParameter(2, Types.DECIMAL);
+            statement.registerOutParameter(3, Types.VARCHAR);
             statement.execute();
-            return new CancellationResult(statement.getBigDecimal(3));
+            
+            BigDecimal refund = statement.getBigDecimal(2);
+            return new CancellationResult(refund != null ? refund : BigDecimal.ZERO);
         }
     }
 
@@ -125,6 +151,7 @@ public class ReservationDAO {
             ps.setLong(2, reservationId);
         }) == 1;
     }
+
     /** Admin endpoint for the cursor-based unpaid-booking expiry procedure. */
     public int expireOverdueReservations() throws SQLException {
         try (var connection = DBConnection.getConnection(DBConnection.AppRole.ADMIN);
@@ -134,14 +161,10 @@ public class ReservationDAO {
             return statement.getInt(1);
         }
     }
+
     /** Admin override keeps payment status and refund totals internally consistent. */
-    public boolean adminOverridePayment(long reservationId, String paymentStatus,
-                                        BigDecimal refundAmount) throws SQLException {
+    public boolean adminOverridePayment(long reservationId, BigDecimal refundAmount) throws SQLException {
         if (reservationId <= 0) throw new IllegalArgumentException("reservationId must be positive.");
-        String normalized = paymentStatus == null ? "" : paymentStatus.toUpperCase(java.util.Locale.ROOT);
-        if (!List.of("PAID", "PARTIALLY_REFUNDED", "REFUNDED", "VOID").contains(normalized)) {
-            throw new IllegalArgumentException("Unsupported payment status.");
-        }
         if (refundAmount == null || refundAmount.signum() < 0) {
             throw new IllegalArgumentException("refundAmount cannot be negative.");
         }
@@ -153,22 +176,13 @@ public class ReservationDAO {
                 try (var result = select.executeQuery()) {
                     if (!result.next()) return false;
                     BigDecimal amount = result.getBigDecimal("amount");
-                    int comparison = refundAmount.compareTo(amount);
-                    boolean valid = switch (normalized) {
-                        case "PAID", "VOID" -> refundAmount.signum() == 0;
-                        case "PARTIALLY_REFUNDED" -> refundAmount.signum() > 0 && comparison < 0;
-                        case "REFUNDED" -> comparison == 0;
-                        default -> false;
-                    };
-                    if (!valid) throw new IllegalArgumentException("Payment status and refund amount do not match.");
+                    if (refundAmount.compareTo(amount) > 0) {
+                        throw new IllegalArgumentException("Refund amount cannot exceed payment amount.");
+                    }
                     try (var update = connection.prepareStatement(
-                            "UPDATE Payment SET payment_status = ?, refund_amount = ?, "
-                            + "refunded_at = CASE WHEN ? = 0 THEN NULL ELSE CURRENT_TIMESTAMP END "
-                            + "WHERE reservation_id = ?")) {
-                        update.setString(1, normalized);
-                        update.setBigDecimal(2, refundAmount);
-                        update.setBigDecimal(3, refundAmount);
-                        update.setLong(4, reservationId);
+                            "UPDATE Payment SET refund_amount = ? WHERE reservation_id = ?")) {
+                        update.setBigDecimal(1, refundAmount);
+                        update.setLong(2, reservationId);
                         boolean changed = update.executeUpdate() == 1;
                         connection.commit();
                         return changed;
@@ -182,6 +196,7 @@ public class ReservationDAO {
             }
         }
     }
+
     private static void validateStay(long guestId, long roomId, LocalDate checkIn, LocalDate checkOut) {
         if (guestId <= 0 || roomId <= 0) throw new IllegalArgumentException("IDs must be positive.");
         if (checkIn == null || checkOut == null || !checkOut.isAfter(checkIn)) {
