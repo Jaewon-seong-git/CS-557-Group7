@@ -12,13 +12,13 @@
 
 ## Schema contract for Role 2
 
-Create five tables with these columns. Role 2 owns the DDL, exact SQL types, indexes, constraints, views, ERD, account grants, and seed rows.
+Create five tables with these columns. Role 2 owns the DDL, exact SQL types, indexes, constraints, views, account grants, and seed rows (ERD is maintained by Role 1, and standalone DTO classes are omitted in favor of Java records in DAOs).
 
 - `User`: `user_id`, `email`, `password_hash`, `name`, `phone`, `role` (`ADMIN` or `GUEST`). Email is unique. Public registration always creates `GUEST`; admin accounts are seeded.
 - `RoomType`: `type_id`, `name` (`Standard`, `Deluxe`, `Suite`), `description`, `capacity`, `price_per_night`. Capacity >= 1; price >= 0. Pricing and capacity belong here, not on Room.
 - `Room`: `room_id`, unique `room_number`, `type_id` FK, `floor`.
 - `Reservation`: `reservation_id`, `guest_id` FK to User, `room_id` FK to Room, `check_in`, `check_out`, `status`, `created_at`, and `total_price DECIMAL(10,2)` snapshot. The proposal omitted `total_price`, but it is required so a later RoomType price edit cannot change an existing reservation quote or payment amount.
-- `Payment`: `payment_id`, unique `reservation_id` FK, `amount`, `payment_status`, `paid_at`, `refund_amount` default 0, `refunded_at`. The proposal lists payment timestamps and refund amount but not `payment_status`; this column is added so the explicitly required Admin payment-status override has a consistent stored value. Allowed payment statuses: `PAID`, `PARTIALLY_REFUNDED`, `REFUNDED`, `VOID`.
+- `Payment`: `payment_id`, unique `reservation_id` FK, `amount`, `payment_status`, `paid_at`, `refund_amount` default 0, `refunded_at`. Note: `payment_method` is omitted from the schema to streamline payment simulation (`ReservationDAO.recordPayment` inserts `reservation_id` and `amount` directly). Allowed payment statuses: `PAID`, `PARTIALLY_REFUNDED`, `REFUNDED`, `VOID`.
 
 Reservation statuses are `PENDING`, `APPROVED`, `CONFIRMED`, and `CANCELLED`. The unique Payment reservation FK means an unpaid reservation has no Payment row yet; a paid reservation has at most one Payment row.
 
@@ -43,12 +43,12 @@ PENDING --Admin approves--> APPROVED --valid payment--> CONFIRMED
 
 - `PENDING`, `APPROVED`, and `CONFIRMED` block room availability. `CANCELLED` releases the room.
 - A guest may request a reservation only if check-out is after check-in and check-in is at least 7 calendar days away. The same boundary applies to payment: `DATEDIFF(check_in, CURRENT_DATE) >= 7` is allowed; fewer than 7 days is not. UI text should say “at least 7 days before check-in,” not “8 days.”
-- `sp_create_reservation` checks overlap, snapshots the current RoomType rate times `DATEDIFF(check_out, check_in)`, creates `PENDING`, and returns both the id and quoted total. The procedure locks the Room row while checking overlap to avoid concurrent double booking. The required BEFORE INSERT reservation trigger also rejects an overlap as a second integrity guard.
+- `sp_create_reservation` checks overlap, snapshots the current RoomType rate times `DATEDIFF(check_out, check_in)`, creates `PENDING`, and returns the reservation id, quoted total, and a status message. The procedure locks the Room row while checking overlap to avoid concurrent double booking. The required BEFORE INSERT reservation trigger also rejects an overlap as a second integrity guard.
 - Admin approval changes only `PENDING` to `APPROVED`.
 - The payment trigger accepts a new Payment only for `APPROVED` with at least 7 days to check-in. It signals a SQL error otherwise; on success it changes Reservation to `CONFIRMED`.
 - `sp_expire_overdue` uses a cursor over unpaid `PENDING`/`APPROVED` rows with fewer than 7 calendar days before check-in and changes them to `CANCELLED`. Repeated runs are safe and no refund is recorded for unpaid reservations.
-- A guest may cancel before check-in. For paid reservations, use calendar days `DATEDIFF(check_in, CURRENT_DATE)`: more than 7 days = 100% refund; 3 through 7 days = 50%; 1 or 2 days = 0%. Cancellation on or after check-in is rejected. Unpaid PENDING/APPROVED cancellation has refund 0. Update Reservation and Payment refund/status fields atomically.
-- Admin may override Reservation status and Payment status for the demo, but the operation must preserve valid status values and refund totals. `ReservationDAO.adminOverridePayment` checks status/refund consistency.
+- A guest may cancel before check-in. Guest ownership verification is enforced at the Java Servlet session layer prior to calling `sp_cancel_reservation`. For paid reservations, use calendar days `DATEDIFF(check_in, CURRENT_DATE)`: more than 7 days = 100% refund; 3 through 7 days = 50%; 1 or 2 days = 0%. Cancellation on or after check-in is rejected. Unpaid PENDING/APPROVED cancellation has refund 0. Update Reservation and Payment refund/status fields atomically.
+- Admin may override Reservation status and Payment status for the demo, but the operation must preserve valid status values and refund totals. `ReservationDAO.adminOverridePayment` checks status/refund consistency and updates both `refund_amount` and `payment_status` (`PAID`, `PARTIALLY_REFUNDED`, `REFUNDED`).
 
 ## SQL routines and triggers for Role 3
 
@@ -61,13 +61,14 @@ sp_create_reservation(
   IN p_check_in DATE,
   IN p_check_out DATE,
   OUT p_reservation_id BIGINT,
-  OUT p_total_price DECIMAL(10,2)
+  OUT p_total_price DECIMAL(10,2),
+  OUT p_status_msg VARCHAR(255)
 )
 
 sp_cancel_reservation(
   IN p_reservation_id BIGINT,
-  IN p_guest_id BIGINT,
-  OUT p_refund_amount DECIMAL(10,2)
+  OUT p_refund_amount DECIMAL(10,2),
+  OUT p_status_msg VARCHAR(255)
 )
 
 sp_expire_overdue(OUT p_cancelled_count INT)
@@ -107,8 +108,8 @@ All JSPs are under `src/main/webapp/WEB-INF/views`; browser URLs go through serv
 
 ## Role deliverables and handoffs
 
-- Role 1: DAO/JNDI/authentication/input validation/session filter; keep SQL mappings aligned with this file.
-- Role 2: ERD, five-table DDL, the two views and indexes, DB accounts/GRANTs, hash-only seeds, DTO beans; confirm the two schema amendments (`total_price`, `payment_status`).
+- Role 1: ERD, DAO/JNDI/authentication/input validation/session filter; keep SQL mappings aligned with this file.
+- Role 2: Five-table DDL, the two views and indexes, DB accounts/GRANTs, hash-only seeds; confirm the two schema amendments (`total_price`, `payment_status`).
 - Role 3: two triggers, three routines, one cursor, query interface table, transaction/errors, SQL examples and boundary evidence.
 - Role 4: admin dashboard, room/type pricing management, reservation approval/status override, guest directory, expiry control; use admin routes and role checks.
 - Role 5: guest registration view, dashboard, date/type search, reservation/payment/cancel, own-profile edit; use guest routes and session-owned ids.
