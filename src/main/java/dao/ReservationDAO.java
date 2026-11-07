@@ -20,7 +20,7 @@ public class ReservationDAO {
             throws SQLException {
         validateStay(guestId, roomId, checkIn, checkOut);
         
-        // sp_create_reservation 
+        // sp_create_reservation 파라미터 7개 (IN 4개, OUT 3개)
         String call = "{call sp_create_reservation(?, ?, ?, ?, ?, ?, ?)}";
         try (var connection = DBConnection.getConnection(DBConnection.AppRole.GUEST);
              CallableStatement statement = connection.prepareCall(call)) {
@@ -43,6 +43,12 @@ public class ReservationDAO {
         }
     }
 
+    /** 
+     * MySQL 1442(Mutating Table) 에러 방지:
+     * 1단계: 대상 예약의 금액을 먼저 SELECT 조회하고 테이블 락을 해제합니다.
+     * 2단계: 순수 INSERT INTO Payment만 실행하여 DB 트리거(trg_payment_after_insert)가 
+     *        충돌 없이 Reservation 테이블을 CONFIRMED로 자동 승격시킬 수 있도록 합니다.
+     */
     public boolean recordPayment(long reservationId, long guestId) throws SQLException {
         if (reservationId <= 0 || guestId <= 0) throw new IllegalArgumentException("IDs must be positive.");
 
@@ -58,13 +64,12 @@ public class ReservationDAO {
                 if (rs.next()) {
                     priceToPay = rs.getBigDecimal("total_price");
                 } else {
-                    return false; 
+                    return false; // 본인 소유가 아니거나 APPROVED 상태가 아님
                 }
             }
         }
 
-        String insertSql = "INSERT INTO Payment (reservation_id, amount, payment_method) VALUES (?, ?, 'CREDIT_CARD')";
-        final BigDecimal finalAmount = priceToPay;
+        String insertSql = "INSERT INTO Payment (reservation_id, amount) VALUES (?, ?)";final BigDecimal finalAmount = priceToPay;
         return DBConnection.update(DBConnection.AppRole.GUEST, insertSql, ps -> {
             ps.setLong(1, reservationId);
             ps.setBigDecimal(2, finalAmount);
@@ -179,10 +184,16 @@ public class ReservationDAO {
                     if (refundAmount.compareTo(amount) > 0) {
                         throw new IllegalArgumentException("Refund amount cannot exceed payment amount.");
                     }
+
+                    // 환불 금액에 따라 payment_status 값을 결정
+                    String newStatus = refundAmount.compareTo(BigDecimal.ZERO) == 0 ? "PAID"
+                            : (refundAmount.compareTo(amount) == 0 ? "REFUNDED" : "PARTIALLY_REFUNDED");
+
                     try (var update = connection.prepareStatement(
-                            "UPDATE Payment SET refund_amount = ? WHERE reservation_id = ?")) {
+                            "UPDATE Payment SET refund_amount = ?, payment_status = ? WHERE reservation_id = ?")) {
                         update.setBigDecimal(1, refundAmount);
-                        update.setLong(2, reservationId);
+                        update.setString(2, newStatus);
+                        update.setLong(3, reservationId);
                         boolean changed = update.executeUpdate() == 1;
                         connection.commit();
                         return changed;
