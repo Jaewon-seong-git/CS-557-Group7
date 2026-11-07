@@ -33,7 +33,7 @@ public final class DBConnection {
             return dataSource.getConnection();
         } catch (NamingException e) {
             // Eclipse main() Local Connection (Connect DriverManager)
-            String url = "jdbc:mysql://localhost:3306/hotel_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC";
+        	String url = "jdbc:mysql://localhost:3306/hotel_reservation?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC";
             String user = (role == AppRole.ADMIN) ? "hotel_admin" : "hotel_guest";
             String pass = (role == AppRole.ADMIN) ? "AdminPass123!" : "GuestPass123!";
             return DriverManager.getConnection(url, user, pass);
