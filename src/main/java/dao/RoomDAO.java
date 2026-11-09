@@ -10,6 +10,10 @@ public class RoomDAO {
     public record RoomRow(long roomId, String roomNumber, long typeId, String roomTypeName,
                           int floor, int capacity, BigDecimal pricePerNight) { }
 
+    /** Added RoomTypeRow record for UI dropdown lists. */
+    public record RoomTypeRow(long typeId, String name, BigDecimal pricePerNight, 
+                              int capacity, String description) { }
+
     /** Date-specific overlap filtering is parameterized here; the view supplies room/type data. */
     public List<RoomRow> searchAvailableRooms(LocalDate checkIn, LocalDate checkOut, Long typeId)
             throws SQLException {
@@ -38,6 +42,20 @@ public class RoomDAO {
                 rs.getInt("capacity"), rs.getBigDecimal("price_per_night")));
     }
 
+    /** Retrieves all room types for Admin UI dropdowns. */
+    public List<RoomTypeRow> getAllRoomTypes() throws SQLException {
+        String sql = "SELECT type_id, name, price_per_night, capacity, description FROM RoomType ORDER BY type_id";
+        return DBConnection.query(DBConnection.AppRole.GUEST, sql, null,
+                rs -> new RoomTypeRow(
+                        rs.getLong("type_id"), 
+                        rs.getString("name"),
+                        rs.getBigDecimal("price_per_night"), 
+                        rs.getInt("capacity"),
+                        rs.getString("description")
+                )
+        );
+    }
+
     public List<RoomRow> findAllRooms() throws SQLException {
         String sql = "SELECT rm.room_id, rm.room_number, rm.type_id, rt.name AS room_type_name, "
                 + "rm.floor, rt.capacity, rt.price_per_night FROM Room rm "
@@ -47,6 +65,7 @@ public class RoomDAO {
                         rs.getLong("type_id"), rs.getString("room_type_name"), rs.getInt("floor"),
                         rs.getInt("capacity"), rs.getBigDecimal("price_per_night")));
     }
+
     public boolean addRoom(String roomNumber, long typeId, int floor) throws SQLException {
         validateRoom(roomNumber, typeId);
         String sql = "INSERT INTO Room (room_number, type_id, floor) VALUES (?, ?, ?)";
