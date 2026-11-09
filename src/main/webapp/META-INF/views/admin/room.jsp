@@ -71,5 +71,16 @@
     <%   }
        } %>
   </table>
+    <h2>Change room type price</h2>
+  <form method="post" action="<%= request.getContextPath() %>/admin/room-types/price">
+    Type:
+    <select name="typeId">
+      <option value="1">Standard</option>
+      <option value="2">Deluxe</option>
+      <option value="3">Suite</option>
+    </select>
+    New price per night: <input name="pricePerNight" type="number" min="0" step="0.01" required>
+    <button type="submit">Update price</button>
+  </form>
 </body>
 </html>

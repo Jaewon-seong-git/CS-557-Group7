@@ -8,8 +8,9 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.sql.SQLException;
+import java.math.BigDecimal;
 
-@WebServlet("/admin/rooms")
+@WebServlet(urlPatterns = {"/admin/rooms", "/admin/room-types/price"})
 public class AdminRoomServlet extends HttpServlet {
     private static final long serialVersionUID = 1L;
     private final RoomDAO roomDAO = new RoomDAO();
@@ -33,7 +34,11 @@ public class AdminRoomServlet extends HttpServlet {
         String action = request.getParameter("action");
 
         try {
-            if ("add".equals(action)) {
+            if ("/admin/room-types/price".equals(request.getServletPath())) {
+                long typeId = Long.parseLong(request.getParameter("typeId"));
+                BigDecimal price = new BigDecimal(request.getParameter("pricePerNight"));
+                roomDAO.updateRoomTypePrice(typeId, price);
+            } else if ("add".equals(action)) {
                 String roomNumber = request.getParameter("roomNumber");
                 long typeId = Long.parseLong(request.getParameter("typeId"));
                 int floor = Integer.parseInt(request.getParameter("floor"));
