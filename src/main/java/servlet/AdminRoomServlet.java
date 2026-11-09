@@ -23,10 +23,10 @@ public class AdminRoomServlet extends HttpServlet {
             request.setAttribute("error", "Could not load rooms.");
         }
         request.getRequestDispatcher("/WEB-INF/views/admin/rooms.jsp").forward(request, response); //forward "room" to room.jsp 
+    }
 
-            @Override
 
-            
+    @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         request.setCharacterEncoding("UTF-8");
@@ -38,9 +38,16 @@ public class AdminRoomServlet extends HttpServlet {
                 long typeId = Long.parseLong(request.getParameter("typeId"));
                 int floor = Integer.parseInt(request.getParameter("floor"));
                 roomDAO.addRoom(roomNumber, typeId, floor);
+            } else if ("delete".equals(action)) {
+                long roomId = Long.parseLong(request.getParameter("roomId"));
+                roomDAO.deleteRoom(roomId);
             }
         } catch (SQLException e) {
-            request.setAttribute("error", "Could not save room: " + e.getMessage());
+            if (e.getErrorCode() == 1451) {
+                request.setAttribute("error", "This room has reservations and cannot be deleted.");
+            } else {
+                request.setAttribute("error", "Could not save room: " + e.getMessage());
+            }
             doGet(request, response);
             return;
         } catch (IllegalArgumentException e) {
@@ -50,6 +57,5 @@ public class AdminRoomServlet extends HttpServlet {
         }
 
         response.sendRedirect(request.getContextPath() + "/admin/rooms");
-    }
     }
 }

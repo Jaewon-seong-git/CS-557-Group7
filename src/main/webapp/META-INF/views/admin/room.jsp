@@ -16,7 +16,7 @@
   <% if (error != null) { %>
     <p style="color:red"><%= error %></p>
   <% } %>
-  
+
   <h2>Add a room</h2>
   <form method="post" action="<%= request.getContextPath() %>/admin/rooms">
     <input type="hidden" name="action" value="add">
@@ -35,9 +35,9 @@
     <button type="submit">Add room</button>
   </form>
 
-  <table border="1">
+   <table border="1">
     <tr>
-      <th>Room</th><th>Type</th><th>Floor</th><th>Capacity</th><th>Price/night</th>
+      <th>Room</th><th>Type</th><th>Floor</th><th>Capacity</th><th>Price/night</th><th>Actions</th>
     </tr>
     <% if (rooms != null) {
          for (RoomDAO.RoomRow r : rooms) { %>
@@ -47,6 +47,13 @@
         <td><%= r.floor() %></td>
         <td><%= r.capacity() %></td>
         <td>$<%= r.pricePerNight() %></td>
+        <td>
+          <form method="post" action="<%= request.getContextPath() %>/admin/rooms">
+            <input type="hidden" name="action" value="delete">
+            <input type="hidden" name="roomId" value="<%= r.roomId() %>">
+            <button type="submit">Delete</button>
+          </form>
+        </td>
       </tr>
     <%   }
        } %>
