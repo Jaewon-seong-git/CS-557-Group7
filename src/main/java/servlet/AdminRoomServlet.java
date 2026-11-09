@@ -23,5 +23,33 @@ public class AdminRoomServlet extends HttpServlet {
             request.setAttribute("error", "Could not load rooms.");
         }
         request.getRequestDispatcher("/WEB-INF/views/admin/rooms.jsp").forward(request, response); //forward "room" to room.jsp 
+
+            @Override
+
+            
+    protected void doPost(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
+        request.setCharacterEncoding("UTF-8");
+        String action = request.getParameter("action");
+
+        try {
+            if ("add".equals(action)) {
+                String roomNumber = request.getParameter("roomNumber");
+                long typeId = Long.parseLong(request.getParameter("typeId"));
+                int floor = Integer.parseInt(request.getParameter("floor"));
+                roomDAO.addRoom(roomNumber, typeId, floor);
+            }
+        } catch (SQLException e) {
+            request.setAttribute("error", "Could not save room: " + e.getMessage());
+            doGet(request, response);
+            return;
+        } catch (IllegalArgumentException e) {
+            request.setAttribute("error", "Invalid input: " + e.getMessage());
+            doGet(request, response);
+            return;
+        }
+
+        response.sendRedirect(request.getContextPath() + "/admin/rooms");
+    }
     }
 }

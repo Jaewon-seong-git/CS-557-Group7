@@ -16,6 +16,24 @@
   <% if (error != null) { %>
     <p style="color:red"><%= error %></p>
   <% } %>
+  
+  <h2>Add a room</h2>
+  <form method="post" action="<%= request.getContextPath() %>/admin/rooms">
+    <input type="hidden" name="action" value="add">
+
+    Room number: <input name="roomNumber" required>
+
+    Type:
+    <select name="typeId" required>
+      <option value="1">Standard</option>
+      <option value="2">Deluxe</option>
+      <option value="3">Suite</option>
+    </select>
+
+    Floor: <input name="floor" type="number" min="0" required>
+
+    <button type="submit">Add room</button>
+  </form>
 
   <table border="1">
     <tr>
