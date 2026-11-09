@@ -48,6 +48,19 @@
         <td><%= r.capacity() %></td>
         <td>$<%= r.pricePerNight() %></td>
         <td>
+            <form method="post" action="<%= request.getContextPath() %>/admin/rooms">
+                <input type="hidden" name="action" value="update">
+                <input type="hidden" name="roomId" value="<%= r.roomId() %>">
+                <input name="roomNumber" value="<%= r.roomNumber() %>" size="5" required>
+                <select name="typeId">
+                <option value="1" <%= r.typeId() == 1 ? "selected" : "" %>>Standard</option>
+                <option value="2" <%= r.typeId() == 2 ? "selected" : "" %>>Deluxe</option>
+                <option value="3" <%= r.typeId() == 3 ? "selected" : "" %>>Suite</option>
+                </select>
+                <input name="floor" type="number" min="0" value="<%= r.floor() %>" style="width:50px" required>
+                <button type="submit">Save</button>
+          </form>
+
           <form method="post" action="<%= request.getContextPath() %>/admin/rooms">
             <input type="hidden" name="action" value="delete">
             <input type="hidden" name="roomId" value="<%= r.roomId() %>">

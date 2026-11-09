@@ -41,6 +41,12 @@ public class AdminRoomServlet extends HttpServlet {
             } else if ("delete".equals(action)) {
                 long roomId = Long.parseLong(request.getParameter("roomId"));
                 roomDAO.deleteRoom(roomId);
+            } else if ("update".equals(action)) {
+                long roomId = Long.parseLong(request.getParameter("roomId"));
+                String roomNumber = request.getParameter("roomNumber");
+                long typeId = Long.parseLong(request.getParameter("typeId"));
+                int floor = Integer.parseInt(request.getParameter("floor"));
+                roomDAO.updateRoom(roomId, roomNumber, typeId, floor);
             }
         } catch (SQLException e) {
             if (e.getErrorCode() == 1451) {
