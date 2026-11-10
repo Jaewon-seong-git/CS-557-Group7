@@ -55,6 +55,21 @@ public class UserDAO {
         }
     }
 
+	/** Loads one guest's profile without exposing authentication details. */
+	public GuestProfile findGuestProfileById(long userId) throws SQLException {
+		if (userId <= 0) {
+			throw new IllegalArgumentException("userId must be positive.");
+		}
+
+		String sql = "select user_id, name, email, phone " + "from `User` where user_id = ? and role = 'GUEST'";
+
+		List<GuestProfile> profiles = DBConnection.query(DBConnection.AppRole.GUEST, sql, ps -> ps.setLong(1, userId),
+				rs -> new GuestProfile(rs.getLong("user_id"), rs.getString("name"), rs.getString("email"),
+						rs.getString("phone")));
+
+		return profiles.isEmpty() ? null : profiles.get(0);
+	}
+
     public boolean updateProfile(long userId, String name, String email, String phone)
             throws SQLException {
         if (userId <= 0) throw new IllegalArgumentException("userId must be positive.");
