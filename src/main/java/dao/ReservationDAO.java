@@ -43,12 +43,7 @@ public class ReservationDAO {
         }
     }
 
-    /** 
-     * MySQL 1442(Mutating Table) 에러 방지:
-     * 1단계: 대상 예약의 금액을 먼저 SELECT 조회하고 테이블 락을 해제합니다.
-     * 2단계: 순수 INSERT INTO Payment만 실행하여 DB 트리거(trg_payment_after_insert)가 
-     *        충돌 없이 Reservation 테이블을 CONFIRMED로 자동 승격시킬 수 있도록 합니다.
-     */
+ 
     public boolean recordPayment(long reservationId, long guestId) throws SQLException {
         if (reservationId <= 0 || guestId <= 0) throw new IllegalArgumentException("IDs must be positive.");
 
@@ -64,7 +59,7 @@ public class ReservationDAO {
                 if (rs.next()) {
                     priceToPay = rs.getBigDecimal("total_price");
                 } else {
-                    return false; // 본인 소유가 아니거나 APPROVED 상태가 아님
+                    return false; // not the owner or not 'Approved' status
                 }
             }
         }
@@ -76,11 +71,21 @@ public class ReservationDAO {
         }) == 1;
     }
 
-    /** The procedure verifies ownership and returns the computed refund amount. */
+    /** Verifies guest ownership in Java before calling sp_cancel_reservation. */
     public CancellationResult cancelReservation(long reservationId, long guestId) throws SQLException {
         if (reservationId <= 0 || guestId <= 0) throw new IllegalArgumentException("IDs must be positive.");
-        
-        // sp_cancel_reservation procedure: IN(reservation_id), OUT(refund_amount), OUT(status_msg)
+
+        // 1. Verifies guest ownership before calling procedure
+        String checkSql = "SELECT 1 FROM Reservation WHERE reservation_id = ? AND guest_id = ?";
+        List<Integer> owned = DBConnection.query(DBConnection.AppRole.GUEST, checkSql, ps -> {
+            ps.setLong(1, reservationId);
+            ps.setLong(2, guestId);
+        }, rs -> 1);
+        if (owned.isEmpty()) {
+            throw new SecurityException("Reservation not found or does not belong to this guest.");
+        }
+
+        // 2. sp_cancel_reservation procedure: IN(reservation_id), OUT(refund_amount), OUT(status_msg)
         String call = "{call sp_cancel_reservation(?, ?, ?)}";
         try (var connection = DBConnection.getConnection(DBConnection.AppRole.GUEST);
              CallableStatement statement = connection.prepareCall(call)) {
