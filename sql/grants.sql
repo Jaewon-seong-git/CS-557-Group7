@@ -24,6 +24,9 @@ GRANT SELECT, INSERT (name, email, phone, password_hash, role),
     ON hotel_reservation.`User` TO 'hotel_guest'@'localhost';
 GRANT SELECT ON hotel_reservation.Available_Rooms_View
     TO 'hotel_guest'@'localhost';
+-- Add RoomType view GRANT
+GRANT SELECT ON hotel_reservation.RoomType
+    TO 'hotel_guest'@'localhost';
 GRANT SELECT ON hotel_reservation.Reservation
     TO 'hotel_guest'@'localhost';
 GRANT SELECT (reservation_id, amount), INSERT (reservation_id, amount)
