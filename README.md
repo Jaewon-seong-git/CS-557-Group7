@@ -5,11 +5,11 @@ Eclipse Dynamic Web Project for COMPSCI 557 Group 7. The implementation baseline
 ## Project layout
 
 - `src/main/java/dao`: database connection (`DBConnection.java`) and DAO operations (`UserDAO`, `RoomDAO`, `ReservationDAO`)
-- `src/main/java/servlet`: registration, login, and logout endpoints
+- `src/main/java/servlet`: authentication (`Login`, `Logout`, `Registration`) and Admin/Guest endpoints
 - `src/main/java/filter`: guest/admin route authorization (`RoleFilter`)
 - `src/main/java/util`: shared input validation
 - `src/main/webapp`: web resources; JSP views belong under `WEB-INF/views`
-- `sql`: Role 2 and Role 3 deliverables (`schema.sql`, `stored_procedures.sql`)
+- `sql`: Role 2 and Role 3 deliverables (`schema.sql`, `seed.sql`, `stored_procedures.sql`, `grants.sql`)
 - `docs/PROJECT_RULES.md`: PM implementation baseline and cross-role contracts
 - `src/main/webapp/META-INF/context.xml.example`: local Tomcat JNDI pool template
 
@@ -25,7 +25,11 @@ Keep `.project`, `.classpath`, and `.settings` in Git so teammates get the same 
 
 ## Local database and Tomcat setup
 
-1. Run `sql/schema.sql` to create the `hotel_reservation` database, tables, indexes, and views, and configure the two least-privilege MySQL accounts (`hotel_admin`, `hotel_guest`) described in `docs/PROJECT_RULES.md`.
+1. Run the SQL scripts in MySQL **in this exact order** (seed data must be inserted before payment triggers are installed):
+   1. `sql/schema.sql` (creates `hotel_reservation` database, tables, indexes, and views)
+   2. `sql/seed.sql` (inserts sample room types, rooms, demo users, and demo reservations/payment)
+   3. `sql/stored_procedures.sql` (installs triggers and stored procedures)
+   4. `sql/grants.sql` (creates/configures least-privilege `hotel_admin` and `hotel_guest` accounts and grants)
 2. Put MySQL Connector/J in Tomcat 10.1's `lib` folder and restart Tomcat.
 3. Copy `src/main/webapp/META-INF/context.xml.example` to `context.xml` in that folder.
 4. Set the local DB name (`hotel_reservation`) and each account's credentials. Keep real credentials only in the ignored `context.xml`.
@@ -33,9 +37,11 @@ Keep `.project`, `.classpath`, and `.settings` in Git so teammates get the same 
 
 ## Current integration status
 
-- **Role 1 (PM / Core Backend):** Core DAOs (`DBConnection`, `UserDAO`, `RoomDAO`, `ReservationDAO`), authentication, session filter, and `docs/PROJECT_RULES.md` aligned with the `hotel_reservation` schema.
-- **Role 2 (DB Schema):** Initial `sql/schema.sql` (5 tables, constraints, indexes, and views) merged; sample seed data and account `GRANT` scripts in progress.
-- **Role 3 / Role 4 / Role 5:** Stored procedures/triggers (`stored_procedures.sql`) and Admin/Guest JSP & servlet pages are pending integration. Full end-to-end runtime verification requires all role deliverables to be merged.
+- **Role 1 (PM / Core Backend):** Core DAOs (`DBConnection`, `UserDAO`, `RoomDAO`, `ReservationDAO`), authentication, `RoleFilter`, and `docs/PROJECT_RULES.md` merged and aligned with `hotel_reservation`.
+- **Role 2 (DB Schema):** `schema.sql`, `seed.sql`, and `grants.sql` merged.
+- **Role 3 (DB Logic):** `stored_procedures.sql` (2 triggers, 3 procedures including expiry cursor) merged.
+- **Role 4 (Admin UI) & Role 5 (Guest UI):** Phase 1 Admin JSP/Servlets and Guest profile JSP/Servlet merged.
+- **Next Phase:** End-to-End Integration, Guest booking/payment/cancellation UI completion, and boundary/security testing.
 
 ## Team contribution flow
 
