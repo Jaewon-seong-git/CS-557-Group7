@@ -30,9 +30,9 @@ GRANT SELECT (reservation_id, amount), INSERT (reservation_id, amount)
     ON hotel_reservation.Payment TO 'hotel_guest'@'localhost';
 
 -- Uncomment these after Role 3's procedures are installed.
--- GRANT EXECUTE ON PROCEDURE hotel_reservation.sp_create_reservation
---     TO 'hotel_guest'@'localhost';
--- GRANT EXECUTE ON PROCEDURE hotel_reservation.sp_cancel_reservation
---     TO 'hotel_guest'@'localhost';
--- GRANT EXECUTE ON PROCEDURE hotel_reservation.sp_expire_overdue
---     TO 'hotel_admin'@'localhost';
+ GRANT EXECUTE ON PROCEDURE hotel_reservation.sp_create_reservation
+     TO 'hotel_guest'@'localhost';
+ GRANT EXECUTE ON PROCEDURE hotel_reservation.sp_cancel_reservation
+     TO 'hotel_guest'@'localhost';
+ GRANT EXECUTE ON PROCEDURE hotel_reservation.sp_expire_overdue
+     TO 'hotel_admin'@'localhost';
